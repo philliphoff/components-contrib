@@ -14,6 +14,8 @@ const (
 	MDNSInstancePort string = "port"
 	// MDNSInstanceID is an optional unique instance ID.
 	MDNSInstanceID string = "instance"
+	// MDNSInstanceConfiguration is optional configuration data.
+	MDNSInstanceConfiguration string = "configuration"
 )
 
 // Metadata contains a name resolution specific set of metadata properties

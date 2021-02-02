@@ -18,6 +18,7 @@ import (
 
 type resolver struct {
 	logger logger.Logger
+	path   string
 }
 
 type StaticEntry struct {
@@ -42,6 +43,8 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 		Port: int(port),
 	}
 
+	k.path = metadata.Properties[nameresolution.MDNSInstanceConfiguration]
+
 	return k.writeConfigFileForApp(metadata.Properties[nameresolution.MDNSInstanceName], entry)
 }
 
@@ -58,7 +61,11 @@ func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 }
 
 func (k *resolver) getFileNameForApp(id string) string {
-	return fmt.Sprintf("%s.json", id)
+	if (k.path == "") {
+		return fmt.Sprintf("%s.json", id)
+	} else {
+		return fmt.Sprintf("%s/%s.json", k.path, id)
+	}
 }
 
 func (k *resolver) readConfigFileForApp(id string) (*StaticEntry, error) {
