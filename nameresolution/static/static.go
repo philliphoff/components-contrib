@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/dapr/pkg/logger"
@@ -33,19 +35,41 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 
 // Init initializes static name resolver.
 func (k *resolver) Init(metadata nameresolution.Metadata) error {
-	var port, err = strconv.ParseInt(metadata.Properties[nameresolution.MDNSInstancePort], 10, 32)
+	started := make(chan bool, 1)
+
+	var address = metadata.Properties[nameresolution.MDNSInstanceAddress]
+	var config = metadata.Properties[nameresolution.MDNSInstanceConfiguration]
+	var id = metadata.Properties[nameresolution.MDNSInstanceName]
+
+	var port64, err = strconv.ParseInt(metadata.Properties[nameresolution.MDNSInstancePort], 10, 32)
 	if (err != nil) {
 		return err
 	}
 
-	var entry = StaticEntry{
-		Address: metadata.Properties[nameresolution.MDNSInstanceAddress],
-		Port: int(port),
-	}
+	var port = int(port64)
 
-	k.path = metadata.Properties[nameresolution.MDNSInstanceConfiguration]
+	k.path = config
 
-	return k.writeConfigFileForApp(metadata.Properties[nameresolution.MDNSInstanceName], entry)
+	go func() {
+		var entry = StaticEntry{
+			Address: address,
+			Port: port,
+		}
+
+		k.writeConfigFileForApp(id, entry)
+
+		started <- true
+
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		<- sig
+
+		k.removeConfigFileForApp(id)
+	}()
+
+	<- started
+
+	return err
 }
 
 // ResolveID resolves name to static address.
@@ -106,4 +130,10 @@ func (k *resolver) writeConfigFileForApp(id string, entry StaticEntry) error {
 	}
 
 	return nil
+}
+
+func (k resolver) removeConfigFileForApp(id string) error {
+	var fileName = k.getFileNameForApp(id)
+
+	return os.Remove(fileName)
 }
